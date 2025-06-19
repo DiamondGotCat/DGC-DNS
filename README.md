@@ -1,3 +1,5 @@
+| English | [日本語](README.ja.md) |
+
 # DGC-DNS
 
 A Practical and Lightweight Open-Source DNS Server
