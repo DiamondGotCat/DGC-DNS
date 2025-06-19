@@ -76,6 +76,7 @@ class DGC_DNS:
         self.SOA_EXPIRATION = int(os.getenv("SOA_EXPIRATION", "1209600"))
         self.SOA_MIN_TTL = int(os.getenv("SOA_MIN_TTL", "86400"))
         self.SOA_DNS_DOMAIN = os.getenv("SOA_DNS_DOMAIN", "ns1.diamondgotcat.net")
+        self.SOA_DNS_DOMAINS = os.getenv("SOA_DNS_DOMAINS", "ns1.diamondgotcat.net,ns2.diamondgotcat.net").split(",")
         with open(self.filepath, "r", encoding="utf-8") as f:
             self.filedata: list = json.load(f)
 
@@ -168,14 +169,15 @@ class DGC_DNS:
             
             reply.header.rcode = RCODE.NXDOMAIN
         
-        reply.add_auth(
-            RR(
-                qname,
-                QTYPE.SOA,
-                rdata=SOA(self.SOA_DNS_DOMAIN, self.SOA_EMAIL.replace("@", ".") + ".", (current_dgceanysec_base10(), self.SOA_REFRESH, self.SOA_RETRY, self.SOA_EXPIRATION, self.SOA_MIN_TTL)),
-                ttl=self.DEFAULT_TTL
+        for dns_domain in self.SOA_DNS_DOMAINS:
+            reply.add_auth(
+                RR(
+                    qname,
+                    QTYPE.SOA,
+                    rdata=SOA(dns_domain.strip(), self.SOA_EMAIL.replace("@", ".") + ".", (current_dgceanysec_base10(), self.SOA_REFRESH, self.SOA_RETRY, self.SOA_EXPIRATION, self.SOA_MIN_TTL)),
+                    ttl=self.DEFAULT_TTL
+                )
             )
-        )
 
         client_udp_len = 512
         have_opt = False
