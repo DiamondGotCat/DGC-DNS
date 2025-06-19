@@ -27,12 +27,12 @@ DGC-DNSの操作は、APIで行うことができます。
 
 ### 操作の種類
 以下の操作をAPI経由で利用可能です。
-- GET `/api/v1/status`: 動作しているかどうかを判定するためのエンドポイントです。正常な場合は`{"status": "ok", "content": "ok"}`が返ってきます。
-- GET `/api/v1/reload`: `records.json`から再読み込みします。手動で編集した場合は、このエンドポイントを叩いてください。
-- GET `/api/v1/records`: 現在読み込まれている`records.json`の中身を返します。
-- POST `/api/v1/records/append`: DNSレコードを追加します。
-- POST `/api/v1/records/remove`: DNSレコードを削除します。
-- POST `/api/v1/records/edit`: DNSレコードを編集します。
+- `GET /api/v1/status`: 動作しているかどうかを判定するためのエンドポイントです。正常な場合は`{"status": "ok", "content": "ok"}`が返ってきます。
+- `GET /api/v1/reload`: `records.json`から再読み込みします。手動で編集した場合は、このエンドポイントを叩いてください。
+- `GET /api/v1/records`: 現在読み込まれている`records.json`の中身を返します。
+- `POST /api/v1/records/append`: DNSレコードを追加します。
+- `POST /api/v1/records/remove`: DNSレコードを削除します。
+- `POST /api/v1/records/edit`: DNSレコードを編集します。
 
 ## ライセンス
 このソフトウェアはMITライセンス下で提供されます。
