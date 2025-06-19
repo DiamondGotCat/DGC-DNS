@@ -170,7 +170,7 @@ class DGC_DNS:
             RR(
                 qname,
                 QTYPE.SOA,
-                rdata=SOA(self.SOA_DNS_DOMAIN, self.SOA_EMAIL.replace("@", ".") + ".", (current_dgce64(), self.SOA_REFRESH, self.SOA_RETRY, self.SOA_EXPIRATION, self.SOA_MIN_TTL)),
+                rdata=SOA(self.SOA_DNS_DOMAIN, self.SOA_EMAIL.replace("@", ".") + ".", (current_dgce64_secs(), self.SOA_REFRESH, self.SOA_RETRY, self.SOA_EXPIRATION, self.SOA_MIN_TTL)),
                 ttl=self.DEFAULT_TTL
             )
         )
