@@ -47,4 +47,6 @@ The following operations are available via the API:
 ## License
 
 This software is provided under the MIT License.
-`Copyright (c) 2025 DiamondGotCat`
+
+---
+Copyright (c) 2025 DiamondGotCat
