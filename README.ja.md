@@ -36,4 +36,6 @@ DGC-DNSの操作は、APIで行うことができます。
 
 ## ライセンス
 このソフトウェアはMITライセンス下で提供されます。
-`Copyright (c) 2025 DiamondGotCat`
+
+---
+Copyright (c) 2025 DiamondGotCat
