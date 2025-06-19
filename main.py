@@ -49,9 +49,9 @@ def _is_record_match(qname: str, record_name: str, rtype: str) -> bool:
         return q == r or q.endswith("." + r)
     return q == r
 
-def current_dgce64():
-    milliseconds_since_2000 = int((time.time() - 946684800) * 1000)
-    return milliseconds_since_2000
+def current_dgce64_secs():
+    seconds_since_2000 = int(time.time() - 946684800)
+    return seconds_since_2000
 
 class DGC_DNS:
     def __init__(self, filepath: str):
