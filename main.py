@@ -1,0 +1,322 @@
+#!/usr/bin/env python3
+import os
+import json
+import uuid
+import socket
+import logging
+import threading
+from typing import Dict, Any
+from functools import lru_cache
+from socketserver import UDPServer, BaseRequestHandler
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+
+from dnslib import (
+    DNSRecord, DNSHeader, RR, QTYPE, RCODE,
+    A, AAAA, CNAME, MX, NS, SOA, TXT, PTR,
+    SRV, CAA, DNSKEY, DS, LOC, NAPTR, NSEC,
+    RP, RRSIG, SSHFP, TLSA, EDNS0
+)
+
+DGC_DNS_TYPES = {
+    "A": A, "AAAA": AAAA, "CNAME": CNAME, "MX": MX, "NS": NS, "SOA": SOA,
+    "TXT": TXT, "PTR": PTR, "SRV": SRV, "CAA": CAA, "DNSKEY": DNSKEY, "DS": DS,
+    "LOC": LOC, "NAPTR": NAPTR, "NSEC": NSEC, "RP": RP, "RRSIG": RRSIG,
+    "SSHFP": SSHFP, "TLSA": TLSA
+}
+
+DGC_DNS_QTYPES = {
+    "A": QTYPE.A, "AAAA": QTYPE.AAAA, "CNAME": QTYPE.CNAME, "MX": QTYPE.MX,
+    "NS": QTYPE.NS, "SOA": QTYPE.SOA, "TXT": QTYPE.TXT, "PTR": QTYPE.PTR,
+    "SRV": QTYPE.SRV, "CAA": QTYPE.CAA, "DNSKEY": QTYPE.DNSKEY, "DS": QTYPE.DS,
+    "LOC": QTYPE.LOC, "NAPTR": QTYPE.NAPTR, "NSEC": QTYPE.NSEC, "RP": QTYPE.RP,
+    "RRSIG": QTYPE.RRSIG, "SSHFP": QTYPE.SSHFP, "TLSA": QTYPE.TLSA
+}
+
+def _build_txt_rdata(text: str) -> TXT:
+    raw = text.encode("utf-8")
+    chunks = [raw[i:i + 255] for i in range(0, len(raw), 255)]
+    return TXT(chunks)
+
+def _is_record_match(qname: str, record_name: str, rtype: str) -> bool:
+    q = qname.rstrip(".")
+    r = record_name.rstrip(".")
+    if rtype in ("NS", "SOA"):
+        return q == r or q.endswith("." + r)
+    return q == r
+
+class DGC_DNS:
+    def __init__(self, filepath: str):
+        self.filepath = filepath
+        if not os.path.exists(self.filepath):
+            with open(self.filepath, "w", encoding="utf-8") as f:
+                json.dump([], f)
+        self.reload()
+
+    def chFilePath(self, new: str):
+        self.filepath = new
+        self.reload()
+
+    def reload(self):
+        with open(self.filepath, "r", encoding="utf-8") as f:
+            self.filedata: list = json.load(f)
+
+    def isExist(self, rtype: str, name: str, exclude_id: str | None = None) -> bool:
+        for record in self.filedata:
+            if record["TYPE"] == rtype and record["NAME"] == name:
+                if exclude_id is None or record["ID"] != exclude_id:
+                    return True
+        return False
+
+    def append(self, data: Dict[str, Any]):
+        rtype = data["TYPE"]
+        if rtype not in DGC_DNS_TYPES:
+            raise ValueError("Unsupported DNS record type.")
+
+        if rtype == "TXT":
+            if len(data["CONTENT"].encode("utf-8")) > 65535:
+                raise ValueError("The total size of the TXT record must be less than 65535 bytes.")
+
+        self.filedata.append(data)
+        with open(self.filepath, "w", encoding="utf-8") as f:
+            json.dump(self.filedata, f, indent=2, ensure_ascii=False)
+        self.reload()
+
+    def remove(self, record_id: str):
+        self.filedata = [r for r in self.filedata if r["ID"] != record_id]
+        with open(self.filepath, "w", encoding="utf-8") as f:
+            json.dump(self.filedata, f, indent=2, ensure_ascii=False)
+        self.reload()
+
+    def edit(self, record_id: str, new: Dict[str, Any], force: bool = False):
+        if "TYPE" in new and new["TYPE"] not in DGC_DNS_TYPES:
+            raise ValueError("Unsupported DNS record type.")
+
+        target = next((r for r in self.filedata if r["ID"] == record_id), None)
+        if not target:
+            raise ValueError("Record not found.")
+
+        new_type = new.get("TYPE", target["TYPE"])
+        new_name = new.get("NAME", target["NAME"])
+        if self.isExist(new_type, new_name, exclude_id=record_id) and not force:
+            raise ValueError("Duplicate record exists.")
+
+        for k, v in new.items():
+            target[k] = v
+
+        with open(self.filepath, "w", encoding="utf-8") as f:
+            json.dump(self.filedata, f, indent=2, ensure_ascii=False)
+        self.reload()
+
+    def genReply(self, data: bytes, client_address) -> DNSRecord:
+        request = DNSRecord.parse(data)
+
+        if not request.q:
+            reply = DNSRecord(
+                DNSHeader(id=request.header.id, qr=1, aa=1, ra=1)
+            )
+            reply.header.rcode = RCODE.FORMERR
+            return reply
+
+        reply = DNSRecord(
+            DNSHeader(id=request.header.id, qr=1, aa=1, ra=1),
+            q=request.q
+        )
+        qname = str(request.q.qname)
+        logging.info(f"DNS query: {qname} from {client_address}")
+
+        count = 0
+        for record in self.filedata:
+            if not _is_record_match(qname, record["NAME"], record["TYPE"]):
+                continue
+
+            rtype = record["TYPE"]
+            ttl = record.get("TTL", 60)
+            count += 1
+
+            if rtype == "TXT":
+                rdata = _build_txt_rdata(record["CONTENT"])
+            else:
+                rdata = DGC_DNS_TYPES[rtype](record["CONTENT"])
+
+            reply.add_answer(
+                RR(record["NAME"], DGC_DNS_QTYPES[rtype], rdata=rdata, ttl=ttl)
+            )
+
+        if count == 0:
+            forwarded = self._forward_query(data)
+            if forwarded:
+                return DNSRecord.parse(forwarded)
+            
+            reply.header.rcode = RCODE.NXDOMAIN
+            for record in self.filedata:
+                if record["TYPE"] == "SOA":
+                    reply.add_auth(
+                        RR(
+                            record["NAME"],
+                            DGC_DNS_QTYPES["SOA"],
+                            rdata=DGC_DNS_TYPES["SOA"](record["CONTENT"]),
+                            ttl=record.get("TTL", 60)
+                        )
+                    )
+                    break
+
+        client_udp_len = 512
+        have_opt = False
+        ext_rcode = 0
+        edns_ver = 0
+        flag_bits = 0
+
+        for ar in request.ar:
+            if ar.rtype == QTYPE.OPT:
+                have_opt = True
+                client_udp_len = ar.rclass or 4096
+                ttl = ar.ttl
+
+                ext_rcode = (ttl >> 24) & 0xFF
+                edns_ver  = (ttl >> 16) & 0xFF
+                flag_bits = ttl & 0xFFFF
+                break
+
+        if have_opt:
+
+            flag_names = []
+            if flag_bits & 0x8000:
+                flag_names.append("do")
+
+            reply.add_ar(
+                EDNS0(
+                    udp_len=client_udp_len,
+                    flags=" ".join(flag_names),
+                    version=edns_ver,
+                    ext_rcode=ext_rcode
+                )
+            )
+
+        packed = reply.pack()
+        if len(packed) > client_udp_len:
+            reply.header.tc = 1
+            reply.rr = []
+            reply.auth = []
+            reply.ar = [r for r in reply.ar if r.rtype == QTYPE.OPT]
+
+        return reply
+    
+    @lru_cache(maxsize=1024)
+    def _forward_query(self, data: bytes) -> bytes | None:
+        fallback_servers = ["1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4"]
+        for server in fallback_servers:
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                    s.settimeout(2.0)
+                    s.sendto(data, (server, 53))
+                    response, _ = s.recvfrom(4096)
+                    return response
+            except socket.timeout:
+                logging.warning(f"Timeout querying fallback server {server}")
+            except Exception as e:
+                logging.error(f"Error querying fallback server {server}: {e}")
+        return None
+
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost", "http://127.0.0.1"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+json_path = os.path.join(script_dir, "records.json")
+log_path = os.path.join(script_dir, "dns.log")
+
+logging.basicConfig(
+    filename=log_path,
+    level=logging.DEBUG,
+    format="(%(asctime)s) [%(levelname)s] %(message)s"
+)
+
+dgc_dns = DGC_DNS(filepath=json_path)
+
+class DNSHandler(BaseRequestHandler):
+    def handle(self):
+        try:
+            data, sock = self.request
+            reply = dgc_dns.genReply(data, self.client_address)
+            sock.sendto(reply.pack(), self.client_address)
+        except Exception as e:
+            logging.exception(f"DNSHandler error: {e}")
+
+def start_dns_server():
+    server = UDPServer(("0.0.0.0", 53), DNSHandler)
+    server.serve_forever()
+
+class RecordAppendRequest(BaseModel):
+    content: Dict[str, Any]
+    force: bool = False
+
+class RecordEditRequest(BaseModel):
+    content: Dict[str, Any]
+    force: bool = False
+
+class RecordRemoveRequest(BaseModel):
+    content: Dict[str, str]
+
+@app.get("/api/v1/status")
+def api_status():
+    return {"status": "ok", "content": "ok"}
+
+@app.get("/api/v1/reload")
+def api_reload():
+    dgc_dns.reload()
+    return {"status": "ok", "content": "reloaded"}
+
+@app.get("/api/v1/records")
+def api_records_get():
+    return JSONResponse(content=dgc_dns.filedata)
+
+@app.post("/api/v1/records/append")
+def api_records_append(req: RecordAppendRequest):
+    try:
+        content = req.content
+        force = req.force
+
+        if not dgc_dns.isExist(content["TYPE"], content["NAME"]) or force:
+            content["ID"] = str(uuid.uuid4())
+            dgc_dns.append(content)
+            return {"status": "ok", "content": content["ID"]}
+        else:
+            return {"status": "error", "content": "Exist record"}
+    except Exception as e:
+        logging.exception("append error")
+        return {"status": "error", "content": str(e)}
+
+@app.post("/api/v1/records/remove")
+def api_records_remove(req: RecordRemoveRequest):
+    try:
+        record_id = req.content["id"]
+        dgc_dns.remove(record_id)
+        return {"status": "ok", "content": record_id}
+    except Exception as e:
+        logging.exception("remove error")
+        return {"status": "error", "content": str(e)}
+
+@app.post("/api/v1/records/edit")
+def api_records_edit(req: RecordEditRequest):
+    try:
+        record_id = req.content["id"]
+        new_data = req.content["new"]
+        dgc_dns.edit(record_id, new_data, force=req.force)
+        return {"status": "ok", "content": record_id}
+    except Exception as e:
+        logging.exception("edit error")
+        return {"status": "error", "content": str(e)}
+
+if __name__ == "__main__":
+    import uvicorn
+    dns_thread = threading.Thread(target=start_dns_server, daemon=True)
+    dns_thread.start()
+    uvicorn.run(app, host="localhost", port=5380)
