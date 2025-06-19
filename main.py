@@ -2,9 +2,11 @@
 import os
 import json
 import uuid
+import time
 import socket
 import logging
 import threading
+from dotenv import load_dotenv
 from typing import Dict, Any
 from functools import lru_cache
 from socketserver import UDPServer, BaseRequestHandler
@@ -43,9 +45,13 @@ def _build_txt_rdata(text: str) -> TXT:
 def _is_record_match(qname: str, record_name: str, rtype: str) -> bool:
     q = qname.rstrip(".")
     r = record_name.rstrip(".")
-    if rtype in ("NS", "SOA"):
+    if rtype == "NS":
         return q == r or q.endswith("." + r)
     return q == r
+
+def current_dgce64():
+    milliseconds_since_2000 = int((time.time() - 946684800) * 1000)
+    return milliseconds_since_2000
 
 class DGC_DNS:
     def __init__(self, filepath: str):
@@ -60,6 +66,14 @@ class DGC_DNS:
         self.reload()
 
     def reload(self):
+        load_dotenv()
+        self.DEFAULT_TTL = os.getenv("DEFAULT_TTL", "60")
+        self.SOA_EMAIL = os.getenv("SOA_EMAIL", "default@diamondgotcat.net")
+        self.SOA_REFRESH = int(os.getenv("SOA_REFRESH", "3600"))
+        self.SOA_RETRY = int(os.getenv("SOA_RETRY", "600"))
+        self.SOA_EXPIRATION = int(os.getenv("SOA_EXPIRATION", "1209600"))
+        self.SOA_MIN_TTL = int(os.getenv("SOA_MIN_TTL", "86400"))
+        self.SOA_DNS_DOMAIN = os.getenv("SOA_DNS_DOMAIN", "ns1.diamondgotcat.net")
         with open(self.filepath, "r", encoding="utf-8") as f:
             self.filedata: list = json.load(f)
 
@@ -133,7 +147,7 @@ class DGC_DNS:
                 continue
 
             rtype = record["TYPE"]
-            ttl = record.get("TTL", 60)
+            ttl = record.get("TTL", self.DEFAULT_TTL)
             count += 1
 
             if rtype == "TXT":
@@ -151,17 +165,15 @@ class DGC_DNS:
                 return DNSRecord.parse(forwarded)
             
             reply.header.rcode = RCODE.NXDOMAIN
-            for record in self.filedata:
-                if record["TYPE"] == "SOA":
-                    reply.add_auth(
-                        RR(
-                            record["NAME"],
-                            DGC_DNS_QTYPES["SOA"],
-                            rdata=DGC_DNS_TYPES["SOA"](record["CONTENT"]),
-                            ttl=record.get("TTL", 60)
-                        )
-                    )
-                    break
+        
+        reply.add_auth(
+            RR(
+                qname,
+                QTYPE.SOA,
+                rdata=SOA(self.SOA_DNS_DOMAIN, self.SOA_EMAIL.replace("@", ".") + ".", (current_dgce64(), self.SOA_REFRESH, self.SOA_RETRY, self.SOA_EXPIRATION, self.SOA_MIN_TTL)),
+                ttl=self.DEFAULT_TTL
+            )
+        )
 
         client_udp_len = 512
         have_opt = False
