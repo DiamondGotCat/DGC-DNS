@@ -49,9 +49,11 @@ def _is_record_match(qname: str, record_name: str, rtype: str) -> bool:
         return q == r or q.endswith("." + r)
     return q == r
 
-def current_dgce64_secs():
-    seconds_since_2000 = int(time.time() - 946684800)
-    return seconds_since_2000
+def current_dgceanysec_base10():
+    # DGC Epoch ANY Second
+    # https://github.com/DiamondGotCat/DGC-Epoch/
+    dgceanysec_base10 = int(time.time() - 946684800)
+    return dgceanysec_base10
 
 class DGC_DNS:
     def __init__(self, filepath: str):
@@ -170,7 +172,7 @@ class DGC_DNS:
             RR(
                 qname,
                 QTYPE.SOA,
-                rdata=SOA(self.SOA_DNS_DOMAIN, self.SOA_EMAIL.replace("@", ".") + ".", (current_dgce64_secs(), self.SOA_REFRESH, self.SOA_RETRY, self.SOA_EXPIRATION, self.SOA_MIN_TTL)),
+                rdata=SOA(self.SOA_DNS_DOMAIN, self.SOA_EMAIL.replace("@", ".") + ".", (current_dgceanysec_base10(), self.SOA_REFRESH, self.SOA_RETRY, self.SOA_EXPIRATION, self.SOA_MIN_TTL)),
                 ttl=self.DEFAULT_TTL
             )
         )
