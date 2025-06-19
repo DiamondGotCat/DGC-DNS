@@ -9,7 +9,7 @@ import threading
 from dotenv import load_dotenv
 from typing import Dict, Any
 from functools import lru_cache
-from socketserver import UDPServer, BaseRequestHandler
+from socketserver import TCPServer, UDPServer, BaseRequestHandler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -97,13 +97,13 @@ class DGC_DNS:
 
         self.filedata.append(data)
         with open(self.filepath, "w", encoding="utf-8") as f:
-            json.dump(self.filedata, f, indent=2, ensure_ascii=False)
+            json.dump(self.filedata, f, ensure_ascii=False)
         self.reload()
 
     def remove(self, record_id: str):
         self.filedata = [r for r in self.filedata if r["ID"] != record_id]
         with open(self.filepath, "w", encoding="utf-8") as f:
-            json.dump(self.filedata, f, indent=2, ensure_ascii=False)
+            json.dump(self.filedata, f, ensure_ascii=False)
         self.reload()
 
     def edit(self, record_id: str, new: Dict[str, Any], force: bool = False):
@@ -123,7 +123,7 @@ class DGC_DNS:
             target[k] = v
 
         with open(self.filepath, "w", encoding="utf-8") as f:
-            json.dump(self.filedata, f, indent=2, ensure_ascii=False)
+            json.dump(self.filedata, f, ensure_ascii=False)
         self.reload()
 
     def genReply(self, data: bytes, client_address) -> DNSRecord:
@@ -268,7 +268,11 @@ class DNSHandler(BaseRequestHandler):
         except Exception as e:
             logging.exception(f"DNSHandler error: {e}")
 
-def start_dns_server():
+def start_dns_tcp_server():
+    server = TCPServer(("0.0.0.0", 53), DNSHandler)
+    server.serve_forever()
+
+def start_dns_udp_server():
     server = UDPServer(("0.0.0.0", 53), DNSHandler)
     server.serve_forever()
 
@@ -335,6 +339,8 @@ def api_records_edit(req: RecordEditRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    dns_thread = threading.Thread(target=start_dns_server, daemon=True)
-    dns_thread.start()
+    dns_tcp_thread = threading.Thread(target=start_dns_tcp_server, daemon=True)
+    dns_udp_thread = threading.Thread(target=start_dns_udp_server, daemon=True)
+    dns_tcp_thread.start()
+    dns_udp_thread.start()
     uvicorn.run(app, host="localhost", port=5380)
