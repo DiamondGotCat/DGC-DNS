@@ -37,5 +37,11 @@ DGC-DNSの操作は、APIで行うことができます。
 ## ライセンス
 このソフトウェアはMITライセンス下で提供されます。
 
+## 利用事例
+DGC-DNSは、開発者(DiamondGotCat)も使用しています。
+- `ns1.diamondgotcat.net` (準備中): ns1.diamondgotcat.netへの別ルート。
+- `35.208.247.170`: 開発者のドメインを一括管理するDGC-DNSサーバー。
+    - まだレジストラに設定していません。
+
 ---
 Copyright (c) 2025 DiamondGotCat
