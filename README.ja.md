@@ -1,3 +1,5 @@
+| [English](README.md) | 日本語 |
+
 # DGC-DNS
 実用的で軽量なオープンソースのDNSサーバー
 
