@@ -39,9 +39,8 @@ The following operations are available via the API:
 
 ## Use Case
 DGC-DNS is used by the developer (DiamondGotCat).
-- `ns1.diamondgotcat.net` (under preparation): An alternative route to `35.208.247.170`.
+- `ns1.diamondgotcat.net`, `ns2.diamondgotcat.net`: An alternative route to `35.208.247.170`.
 - `35.208.247.170`: The DGC-DNS server that centrally manages the developer's domains.
-  - Not yet configured with the registrar.
 
 ## License
 This software is provided under the MIT License.
