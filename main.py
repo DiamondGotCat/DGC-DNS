@@ -181,7 +181,7 @@ class DGC_DNS:
 
                 rtype = record["TYPE"]
 
-                if qtype != "ANY" and rtype != qtype:
+                if qtype != "ANY" and rtype != qtype and rtype != "CNAME":
                     continue
 
                 ttl = record.get("TTL", self.DEFAULT_TTL)
