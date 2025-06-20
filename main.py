@@ -74,6 +74,7 @@ class DGC_DNS:
         self.GeoIP_USE = os.getenv("GeoIP_USE", "False").lower() == "true"
         self.GeoIP_Country_PATH = os.getenv("GeoIP_Country_PATH", "GeoLite2-Country.mmdb")
         self.GeoIP_SWITCHING = os.getenv("GeoIP_SWITCHING", "False").lower() == "true"
+        self.GeoDNS_ENABLE = os.getenv("GeoDNS_ENABLE", "False").lower() == "true"
         self.SOA_EMAIL = os.getenv("SOA_EMAIL", "default@diamondgotcat.net")
         self.SOA_REFRESH = int(os.getenv("SOA_REFRESH", "3600"))
         self.SOA_RETRY = int(os.getenv("SOA_RETRY", "600"))
@@ -186,10 +187,27 @@ class DGC_DNS:
                 ttl = record.get("TTL", self.DEFAULT_TTL)
                 count += 1
 
-                if rtype == "TXT":
-                    rdata = _build_txt_rdata(record["CONTENT"])
+                if self.GeoDNS_ENABLE:
+                    MIRRORS = record.get("MIRRORS", [])
+                    FOUND_MIRROR = False
+                    for MIRROR in MIRRORS:
+                        if MIRROR["COUNTRY"] == GeoIP_Data["iso_code"]:
+                            FOUND_MIRROR = True
+                            CONTENT = MIRROR["CONTENT"]
+                            if rtype == "TXT":
+                                rdata = _build_txt_rdata(CONTENT)
+                                break
+                            else:
+                                rdata = DGC_DNS_TYPES[rtype](CONTENT)
+                                break
+                    if not FOUND_MIRROR:
+                        CONTENT = record["CONTENT"]
+
                 else:
-                    rdata = DGC_DNS_TYPES[rtype](record["CONTENT"])
+                    if rtype == "TXT":
+                        rdata = _build_txt_rdata(record["CONTENT"])
+                    else:
+                        rdata = DGC_DNS_TYPES[rtype](record["CONTENT"])
 
                 reply.add_answer(
                     RR(record["NAME"], DGC_DNS_QTYPES[rtype], rdata=rdata, ttl=ttl)
