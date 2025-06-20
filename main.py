@@ -76,7 +76,7 @@ class DGC_DNS:
         self.SOA_RETRY = int(os.getenv("SOA_RETRY", "600"))
         self.SOA_EXPIRATION = int(os.getenv("SOA_EXPIRATION", "1209600"))
         self.SOA_MIN_TTL = int(os.getenv("SOA_MIN_TTL", "86400"))
-        self.SOA_DNS_DOMAIN = os.getenv("SOA_DNS_DOMAIN", "ns1.diamondgotcat.net").split(",")
+        self.SOA_DNS_DOMAIN = os.getenv("SOA_DNS_DOMAIN", "ns1.diamondgotcat.net")
         with open(self.filepath, "r", encoding="utf-8") as f:
             self.filedata: list = json.load(f)
 
