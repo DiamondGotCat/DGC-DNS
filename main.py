@@ -69,6 +69,7 @@ class DGC_DNS:
 
     def reload(self):
         load_dotenv()
+        self.SOA_SERIAL = current_dgceanysec_base10()
         self.DEFAULT_TTL = int(os.getenv("DEFAULT_TTL", "60"))
         self.SOA_EMAIL = os.getenv("SOA_EMAIL", "default@diamondgotcat.net")
         self.SOA_REFRESH = int(os.getenv("SOA_REFRESH", "3600"))
@@ -171,7 +172,7 @@ class DGC_DNS:
                 RR(
                     qname,
                     QTYPE.SOA,
-                    rdata=SOA(dns_domain.strip(), self.SOA_EMAIL.replace("@", ".") + ".", (current_dgceanysec_base10(), self.SOA_REFRESH, self.SOA_RETRY, self.SOA_EXPIRATION, self.SOA_MIN_TTL)),
+                    rdata=SOA(dns_domain.strip(), self.SOA_EMAIL.replace("@", ".") + ".", (self.SOA_SERIAL, self.SOA_REFRESH, self.SOA_RETRY, self.SOA_EXPIRATION, self.SOA_MIN_TTL)),
                     ttl=self.DEFAULT_TTL
                 )
             )
