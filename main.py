@@ -76,7 +76,7 @@ class DGC_DNS:
         self.SOA_RETRY = int(os.getenv("SOA_RETRY", "600"))
         self.SOA_EXPIRATION = int(os.getenv("SOA_EXPIRATION", "1209600"))
         self.SOA_MIN_TTL = int(os.getenv("SOA_MIN_TTL", "86400"))
-        self.SOA_DNS_DOMAINS = os.getenv("SOA_DNS_DOMAINS", "ns1.diamondgotcat.net,ns2.diamondgotcat.net").split(",")
+        self.SOA_DNS_DOMAIN = os.getenv("SOA_DNS_DOMAIN", "ns1.diamondgotcat.net").split(",")
         with open(self.filepath, "r", encoding="utf-8") as f:
             self.filedata: list = json.load(f)
 
@@ -167,15 +167,14 @@ class DGC_DNS:
                 RR(record["NAME"], DGC_DNS_QTYPES[rtype], rdata=rdata, ttl=ttl)
             )
 
-        for dns_domain in self.SOA_DNS_DOMAINS:
-            reply.add_auth(
-                RR(
-                    qname,
-                    QTYPE.SOA,
-                    rdata=SOA(dns_domain.strip(), self.SOA_EMAIL.replace("@", ".") + ".", (self.SOA_SERIAL, self.SOA_REFRESH, self.SOA_RETRY, self.SOA_EXPIRATION, self.SOA_MIN_TTL)),
-                    ttl=self.DEFAULT_TTL
-                )
+        reply.add_auth(
+            RR(
+                qname,
+                QTYPE.SOA,
+                rdata=SOA(self.SOA_DNS_DOMAIN.strip(), self.SOA_EMAIL.replace("@", ".") + ".", (self.SOA_SERIAL, self.SOA_REFRESH, self.SOA_RETRY, self.SOA_EXPIRATION, self.SOA_MIN_TTL)),
+                ttl=self.DEFAULT_TTL
             )
+        )
 
         if qtype == "SOA":
             count = 1
