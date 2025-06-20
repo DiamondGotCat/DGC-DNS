@@ -183,7 +183,7 @@ class DGC_DNS:
             forwarded = self._forward_query(data)
             if forwarded:
                 return DNSRecord.parse(forwarded)
-            
+
             reply.header.rcode = RCODE.NXDOMAIN
 
         client_udp_len = 512
@@ -226,7 +226,7 @@ class DGC_DNS:
             reply.ar = [r for r in reply.ar if r.rtype == QTYPE.OPT]
 
         return reply
-    
+
     @lru_cache(maxsize=1024)
     def _forward_query(self, data: bytes) -> bytes | None:
         fallback_servers = ["1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4"]
