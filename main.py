@@ -6,6 +6,7 @@ import time
 import socket
 import logging
 import threading
+import geoip2.database
 from dotenv import load_dotenv
 from typing import Dict, Any
 from functools import lru_cache
@@ -39,8 +40,7 @@ DGC_DNS_QTYPES = {
 
 def _build_txt_rdata(text: str) -> TXT:
     raw = text.encode("utf-8")
-    chunks = [raw[i:i + 255] for i in range(0, len(raw), 255)]
-    return TXT(chunks)
+    return TXT([chunk.decode("utf-8", errors="replace") for chunk in [raw[i:i + 255] for i in range(0, len(raw), 255)]])
 
 def _is_record_match(qname: str, record_name: str, rtype: str) -> bool:
     q = qname.rstrip(".")
@@ -71,14 +71,23 @@ class DGC_DNS:
         load_dotenv()
         self.SOA_SERIAL = current_dgceanysec_base10()
         self.DEFAULT_TTL = int(os.getenv("DEFAULT_TTL", "60"))
+        self.GeoIP_USE = os.getenv("GeoIP_USE", "False").lower() == "true"
+        self.GeoIP_Country_PATH = os.getenv("GeoIP_Country_PATH", "GeoLite2-Country.mmdb")
+        self.GeoIP_SWITCHING = os.getenv("GeoIP_SWITCHING", "False").lower() == "true"
         self.SOA_EMAIL = os.getenv("SOA_EMAIL", "default@diamondgotcat.net")
         self.SOA_REFRESH = int(os.getenv("SOA_REFRESH", "3600"))
         self.SOA_RETRY = int(os.getenv("SOA_RETRY", "600"))
         self.SOA_EXPIRATION = int(os.getenv("SOA_EXPIRATION", "1209600"))
         self.SOA_MIN_TTL = int(os.getenv("SOA_MIN_TTL", "86400"))
         self.SOA_DNS_DOMAIN = os.getenv("SOA_DNS_DOMAIN", "ns1.diamondgotcat.net")
+
         with open(self.filepath, "r", encoding="utf-8") as f:
             self.filedata: list = json.load(f)
+
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        geoip_rule_path = os.path.join(script_dir, "geoip_rule.json")
+        with open(geoip_rule_path, "r", encoding="utf-8") as f:
+            self.geoip_rule: list = json.load(f)
 
     def isExist(self, rtype: str, name: str, exclude_id: str | None = None) -> bool:
         for record in self.filedata:
@@ -127,6 +136,16 @@ class DGC_DNS:
             json.dump(self.filedata, f, ensure_ascii=False)
         self.reload()
 
+    def processGeoIP(self, ip):
+        with geoip2.database.Reader(self.GeoIP_Country_PATH) as reader:
+            try:
+                response = reader.country(ip)
+                name = response.country.name
+                iso_code = response.country.iso_code
+                return {"name": name, "iso_code": iso_code}
+            except geoip2.errors.AddressNotFoundError:
+                return {"name": "Unknown", "iso_code": "DEFAULT"}
+
     def genReply(self, data: bytes, client_address) -> DNSRecord:
         request = DNSRecord.parse(data)
 
@@ -143,29 +162,38 @@ class DGC_DNS:
         )
         qname = str(request.q.qname)
         qtype = QTYPE.get(request.q.qtype, "A")
-        logging.info(f"{qname} IN {qtype} (FROM {client_address})")
+
+        if self.GeoIP_USE:
+            GeoIP_Data = self.processGeoIP(client_address)
+            logging.info(f"{qname} IN {qtype} (FROM {client_address} - {GeoIP_Data['name']} | {GeoIP_Data['iso_code']})")
+        else:
+            GeoIP_Data = {"name": "Unknown", "iso_code": "DEFAULT"}
+            logging.info(f"{qname} IN {qtype} (FROM {client_address})")
 
         count = 0
-        for record in self.filedata:
-            if not _is_record_match(qname, record["NAME"], record["TYPE"]):
-                continue
 
-            rtype = record["TYPE"]
+        if not self.GeoIP_SWITCHING:
 
-            if qtype != "ANY" and rtype != qtype:
-                continue
+            for record in self.filedata:
+                if not _is_record_match(qname, record["NAME"], record["TYPE"]):
+                    continue
 
-            ttl = record.get("TTL", self.DEFAULT_TTL)
-            count += 1
+                rtype = record["TYPE"]
 
-            if rtype == "TXT":
-                rdata = _build_txt_rdata(record["CONTENT"])
-            else:
-                rdata = DGC_DNS_TYPES[rtype](record["CONTENT"])
+                if qtype != "ANY" and rtype != qtype:
+                    continue
 
-            reply.add_answer(
-                RR(record["NAME"], DGC_DNS_QTYPES[rtype], rdata=rdata, ttl=ttl)
-            )
+                ttl = record.get("TTL", self.DEFAULT_TTL)
+                count += 1
+
+                if rtype == "TXT":
+                    rdata = _build_txt_rdata(record["CONTENT"])
+                else:
+                    rdata = DGC_DNS_TYPES[rtype](record["CONTENT"])
+
+                reply.add_answer(
+                    RR(record["NAME"], DGC_DNS_QTYPES[rtype], rdata=rdata, ttl=ttl)
+                )
 
         reply.add_auth(
             RR(
@@ -178,6 +206,14 @@ class DGC_DNS:
 
         if qtype == "SOA":
             count = 1
+
+        if self.GeoIP_USE:
+            count = 1
+            forwarded = self._forward_query(data, GeoIP_Data["iso_code"])
+            if forwarded:
+                return DNSRecord.parse(forwarded)
+
+            reply.header.rcode = RCODE.NXDOMAIN
 
         if count == 0:
             forwarded = self._forward_query(data)
@@ -228,8 +264,8 @@ class DGC_DNS:
         return reply
 
     @lru_cache(maxsize=1024)
-    def _forward_query(self, data: bytes) -> bytes | None:
-        fallback_servers = ["1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4"]
+    def _forward_query(self, data: bytes, location = "DEFAULT") -> bytes | None:
+        fallback_servers = self.geoip_rule.get(location, self.geoip_rule.get("DEFAULT", ["1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4"]))
         for server in fallback_servers:
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
