@@ -10,7 +10,7 @@ import geoip2.database
 from dotenv import load_dotenv
 from typing import Dict, Any
 from functools import lru_cache
-from socketserver import TCPServer, UDPServer, BaseRequestHandler
+from socketserver import TCPServer, UDPServer, BaseRequestHandler, ThreadingMixIn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -331,12 +331,18 @@ class DNSHandler(BaseRequestHandler):
         except Exception as e:
             logging.exception(f"DNSHandler error: {e}")
 
+class ThreadedTCPServer(ThreadingMixIn, TCPServer):
+    pass
+
+class ThreadedUDPServer(ThreadingMixIn, UDPServer):
+    pass
+
 def start_dns_tcp_server():
-    server = TCPServer(("0.0.0.0", 53), DNSHandler)
+    server = ThreadedTCPServer(("0.0.0.0", 53), DNSHandler)
     server.serve_forever()
 
 def start_dns_udp_server():
-    server = UDPServer(("0.0.0.0", 53), DNSHandler)
+    server = ThreadedUDPServer(("0.0.0.0", 53), DNSHandler)
     server.serve_forever()
 
 class RecordAppendRequest(BaseModel):
