@@ -75,7 +75,6 @@ class DGC_DNS:
         self.SOA_RETRY = int(os.getenv("SOA_RETRY", "600"))
         self.SOA_EXPIRATION = int(os.getenv("SOA_EXPIRATION", "1209600"))
         self.SOA_MIN_TTL = int(os.getenv("SOA_MIN_TTL", "86400"))
-        self.SOA_DNS_DOMAIN = os.getenv("SOA_DNS_DOMAIN", "ns1.diamondgotcat.net")
         self.SOA_DNS_DOMAINS = os.getenv("SOA_DNS_DOMAINS", "ns1.diamondgotcat.net,ns2.diamondgotcat.net").split(",")
         with open(self.filepath, "r", encoding="utf-8") as f:
             self.filedata: list = json.load(f)
@@ -142,7 +141,8 @@ class DGC_DNS:
             q=request.q
         )
         qname = str(request.q.qname)
-        logging.info(f"DNS query: {qname} from {client_address}")
+        qtype = QTYPE.get(request.q.qtype, "A")
+        logging.info(f"{qname} IN {qtype} (FROM {client_address})")
 
         count = 0
         for record in self.filedata:
@@ -150,6 +150,10 @@ class DGC_DNS:
                 continue
 
             rtype = record["TYPE"]
+
+            if qtype != "ANY" and rtype != qtype:
+                continue
+
             ttl = record.get("TTL", self.DEFAULT_TTL)
             count += 1
 
