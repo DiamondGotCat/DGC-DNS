@@ -164,7 +164,7 @@ class DGC_DNS:
         qtype = QTYPE.get(request.q.qtype, "A")
 
         if self.GeoIP_USE:
-            GeoIP_Data = self.processGeoIP(client_address)
+            GeoIP_Data = self.processGeoIP(client_address[0])
             logging.info(f"{qname} IN {qtype} (FROM {client_address} - {GeoIP_Data['name']} | {GeoIP_Data['iso_code']})")
         else:
             GeoIP_Data = {"name": "Unknown", "iso_code": "DEFAULT"}
