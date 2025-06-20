@@ -213,6 +213,19 @@ class DGC_DNS:
                     RR(record["NAME"], DGC_DNS_QTYPES[rtype], rdata=rdata, ttl=ttl)
                 )
 
+                if rtype == "CNAME":
+                    cname_target = record["CONTENT"]
+                    
+                    try:
+                        addrinfo = socket.getaddrinfo(cname_target, None, socket.AF_INET)
+                        for ai in addrinfo:
+                            ip = ai[4][0]
+                            reply.add_answer(
+                                RR(cname_target, QTYPE.A, rdata=A(ip), ttl=self.DEFAULT_TTL)
+                            )
+                    except Exception as e:
+                        logging.warning(f"Could not resolve CNAME target {cname_target}: {e}")
+
         reply.add_auth(
             RR(
                 qname,
