@@ -166,13 +166,6 @@ class DGC_DNS:
                 RR(record["NAME"], DGC_DNS_QTYPES[rtype], rdata=rdata, ttl=ttl)
             )
 
-        if count == 0:
-            forwarded = self._forward_query(data)
-            if forwarded:
-                return DNSRecord.parse(forwarded)
-            
-            reply.header.rcode = RCODE.NXDOMAIN
-        
         for dns_domain in self.SOA_DNS_DOMAINS:
             reply.add_auth(
                 RR(
@@ -182,6 +175,16 @@ class DGC_DNS:
                     ttl=self.DEFAULT_TTL
                 )
             )
+
+        if qtype == "SOA":
+            count = 1
+
+        if count == 0:
+            forwarded = self._forward_query(data)
+            if forwarded:
+                return DNSRecord.parse(forwarded)
+            
+            reply.header.rcode = RCODE.NXDOMAIN
 
         client_udp_len = 512
         have_opt = False
