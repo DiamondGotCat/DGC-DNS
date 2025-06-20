@@ -207,7 +207,7 @@ class DGC_DNS:
         if qtype == "SOA":
             count = 1
 
-        if self.GeoIP_USE:
+        if self.GeoIP_SWITCHING:
             count = 1
             forwarded = self._forward_query(data, GeoIP_Data["iso_code"])
             if forwarded:
