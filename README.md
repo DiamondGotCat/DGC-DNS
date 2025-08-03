@@ -37,11 +37,6 @@ The following operations are available via the API:
 - `POST /api/v1/records/remove`: Removes a DNS record.
 - `POST /api/v1/records/edit`: Edits a DNS record.
 
-## Use Case
-DGC-DNS is used by the developer (DiamondGotCat).
-- `ns1.diamondgotcat.net`, `ns2.diamondgotcat.net`: An alternative route to `35.208.247.170`.
-- `35.208.247.170`: The DGC-DNS server that centrally manages the developer's domains.
-
 ## License
 This software is provided under the MIT License.
 
