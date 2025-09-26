@@ -75,12 +75,12 @@ class DGC_DNS:
         self.GeoIP_Country_PATH = os.getenv("GeoIP_Country_PATH", "GeoLite2-Country.mmdb")
         self.GeoIP_SWITCHING = os.getenv("GeoIP_SWITCHING", "False").lower() == "true"
         self.GeoDNS_ENABLE = os.getenv("GeoDNS_ENABLE", "False").lower() == "true"
-        self.SOA_EMAIL = os.getenv("SOA_EMAIL", "default@diamondgotcat.net")
+        self.SOA_EMAIL = os.getenv("SOA_EMAIL", "default@example.diamondgotcat.net")
         self.SOA_REFRESH = int(os.getenv("SOA_REFRESH", "3600"))
         self.SOA_RETRY = int(os.getenv("SOA_RETRY", "600"))
         self.SOA_EXPIRATION = int(os.getenv("SOA_EXPIRATION", "1209600"))
         self.SOA_MIN_TTL = int(os.getenv("SOA_MIN_TTL", "86400"))
-        self.SOA_DNS_DOMAIN = os.getenv("SOA_DNS_DOMAIN", "ns1.diamondgotcat.net")
+        self.SOA_DNS_DOMAIN = os.getenv("SOA_DNS_DOMAIN", "ns1.example.diamondgotcat.net")
 
         with open(self.filepath, "r", encoding="utf-8") as f:
             self.filedata: list = json.load(f)

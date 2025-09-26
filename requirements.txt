@@ -1,0 +1,11 @@
+# Server
+python-dotenv
+geoip2
+fastapi
+uvicorn
+dnslib
+pydantic
+
+# Client
+requests
+rich

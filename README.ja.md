@@ -34,11 +34,6 @@ DGC-DNSの操作は、APIで行うことができます。
 - `POST /api/v1/records/remove`: DNSレコードを削除します。
 - `POST /api/v1/records/edit`: DNSレコードを編集します。
 
-## 利用事例
-DGC-DNSは、開発者(DiamondGotCat)も使用しています。
-- `ns1.diamondgotcat.net`, `ns2.diamondgotcat.net`: `35.208.247.170`への別ルート。
-- `35.208.247.170`: 開発者のドメインを一括管理するDGC-DNSサーバー。
-
 ## ライセンス
 このソフトウェアはMITライセンス下で提供されます。
 

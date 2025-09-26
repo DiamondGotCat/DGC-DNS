@@ -1,6 +1,7 @@
 import requests
 import json
 from rich.prompt import Prompt
+from rich.prompt import IntPrompt
 
 BASE_URL = "http://localhost:5380/api/v1"
 
@@ -14,6 +15,7 @@ def print_help():
     print("""
 Available commands:
   status                      - Check server status
+  conn / connect              - Change Connection Settings
   reload                      - Reload DNS records
   list                        - List all DNS records
   append                      - Add a new DNS record
@@ -24,16 +26,23 @@ Available commands:
 """)
 
 def run_repl():
-    print("DGC DNS API Client")
+    print("DGC-DNS API Client")
     print_help()
 
     while True:
         try:
-            cmd = input("> ").strip().lower()
+            cmd = input(">>> ").strip().lower()
 
             if cmd in ("exit", "quit"):
                 print("Goodbye.")
                 break
+
+            elif cmd in ("conn", "connect"):
+                host = Prompt.ask("Host (IP Address / Hostname)", default="localhost")
+                port = IntPrompt.ask("DGC-DNS API Port", default=5380)
+                path = Prompt.ask("DGC-DNS API Path", default="/api/v1")
+                BASE_URL = f"http://{host}:{port}/{path.strip('/')}"
+                print(f"Setted Connection URL to: {BASE_URL}")
 
             elif cmd == "status":
                 res = requests.get(f"{BASE_URL}/status")
